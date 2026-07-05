@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>오늘의 단어</title>
+<style>
+  :root {
+    --bg: #1c1c1e;
+    --tile-empty-border: #3a3a3c;
+    --tile-filled-bg: #2c2c2e;
+    --tile-filled-border: #565656;
+    --key-bg: #2c2c2e;
+    --absent: #d1d1d3;      /* 회색 (오답 자모) */
+    --absent-text: #1c1c1e;
+    --present: #f6d55c;     /* 노랑 (위치 틀림) */
+    --correct: #96d6a0;     /* 초록 (정답 위치) */
+    --state-text: #1c1c1e;
+    --text: #e8e8ea;
+    --accent: #f6d55c;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+    overflow: hidden;
+  }
+  #app {
+    display: flex; flex-direction: column;
+    height: 100%; max-width: 500px; margin: 0 auto;
+  }
+  header {
+    text-align: center; padding: 72px 0 10px;
+    font-size: 28px; font-weight: 800; letter-spacing: -0.5px;
+  }
+  #board-wrap { flex: 1; display: flex; align-items: center; justify-content: center; }
+  #board {
+    display: grid; grid-template-rows: repeat(5, 1fr);
+    gap: 8px; padding: 6px;
+  }
+  .row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .tile {
+    width: 58px; height: 58px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; font-weight: 700;
+    border: 2px solid var(--tile-empty-border);
+    border-radius: 12px;
+    transition: transform .1s, background .2s, border-color .2s, color .2s;
+  }
+  .tile.filled { border-color: var(--tile-filled-border); background: var(--tile-filled-bg); }
+  .tile.pop { transform: scale(1.08); }
+  .tile.flip { animation: flip .5s ease forwards; }
+  @keyframes flip {
+    0%   { transform: rotateX(0deg); }
+    50%  { transform: rotateX(90deg); }
+    100% { transform: rotateX(0deg); }
+  }
+  .tile.absent  { background: var(--absent);  border-color: var(--absent);  color: var(--absent-text); }
+  .tile.present { background: var(--present); border-color: var(--present); color: var(--state-text); }
+  .tile.correct { background: var(--correct); border-color: var(--correct); color: var(--state-text); }
+
+  #keyboard { padding: 6px 5px 8px; margin-bottom: 40px; }
+  .krow { display: flex; justify-content: center; gap: 6px; margin-bottom: 8px; }
+  .key {
+    flex: 1; max-width: 40px; height: 54px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--key-bg); color: var(--text);
+    border: none; border-radius: 8px;
+    font-size: 22px; font-weight: 600; cursor: pointer;
+    user-select: none;
+  }
+  .key:active { filter: brightness(1.3); }
+  .key.absent  { background: var(--absent);  color: var(--absent-text); }
+  .key.present { background: var(--present); color: var(--state-text); }
+  .key.correct { background: var(--correct); color: var(--state-text); }
+  .key.back { max-width: 40px; font-size: 24px; }
+
+  #submit {
+    margin: 4px 12px 48px; height: 60px;
+    background: var(--accent); color: #1c1c1e;
+    border: none; border-radius: 14px;
+    font-size: 20px; font-weight: 800; cursor: pointer;
+  }
+  #submit:active { filter: brightness(.95); }
+
+  #toast {
+    position: fixed; top: 130px; left: 50%; transform: translateX(-50%);
+    background: #f2f2f2; color: #1c1c1e;
+    padding: 10px 18px; border-radius: 10px; font-weight: 700;
+    opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 10;
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>오늘의 단어</header>
+  <div id="board-wrap"><div id="board"></div></div>
+  <div id="keyboard"></div>
+  <button id="submit">결과보기</button>
+</div>
+<div id="toast"></div>
+
+<script src="logic.js"></script>
+<script src="words.js"></script>
+<script>
+/* 핵심 로직은 logic.js에서 로드 (게임/테스트 공유 단일 소스) */
+const { decompose, evaluate } = KordleLogic;
+
+/* ---------- 정답 후보 (words.js에서 로드, 현재 A등급만 사용) ---------- */
+const GRADE = "A";
+const WORDS = KordleWords.WORDS_BY_GRADE[GRADE];
+const LEN = 5, MAX = 5;
+
+// 직전 단어(exclude)를 피해 랜덤으로 하나 뽑는다
+function pickWord(exclude) {
+  const pool = WORDS.length > 1 ? WORDS.filter(w => w !== exclude) : WORDS;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/* ---------- 게임 상태 (newGame으로 초기화) ---------- */
+let answerWord, answer;      // 현재 정답 단어 / 자모 배열
+let curRow, current, done, guesses;
+
+/* ---------- 자판 배열 (이미지와 동일: 기본 자모) ---------- */
+const KEY_ROWS = [
+  ["ㅂ","ㅈ","ㄷ","ㄱ","ㅅ","ㅛ","ㅕ","ㅑ","⌫"],
+  ["ㅁ","ㄴ","ㅇ","ㄹ","ㅎ","ㅗ","ㅓ","ㅏ","ㅣ"],
+  ["ㅋ","ㅌ","ㅊ","ㅍ","ㅠ","ㅜ","ㅡ"]
+];
+let keyState = {}; // 자모별 최고 상태
+
+/* ---------- DOM 구성 ---------- */
+const board = document.getElementById("board");
+const tiles = [];
+for (let r = 0; r < MAX; r++) {
+  const row = document.createElement("div");
+  row.className = "row";
+  const rowTiles = [];
+  for (let c = 0; c < LEN; c++) {
+    const t = document.createElement("div");
+    t.className = "tile";
+    row.appendChild(t);
+    rowTiles.push(t);
+  }
+  board.appendChild(row);
+  tiles.push(rowTiles);
+}
+
+const kb = document.getElementById("keyboard");
+const keyEls = {};
+for (const kr of KEY_ROWS) {
+  const rowEl = document.createElement("div");
+  rowEl.className = "krow";
+  for (const k of kr) {
+    const btn = document.createElement("button");
+    btn.className = "key" + (k === "⌫" ? " back" : "");
+    btn.textContent = k;
+    btn.addEventListener("click", () => k === "⌫" ? backspace() : press(k));
+    rowEl.appendChild(btn);
+    if (k !== "⌫") keyEls[k] = btn;
+  }
+  kb.appendChild(rowEl);
+}
+const submitBtn = document.getElementById("submit");
+submitBtn.addEventListener("click", () => done ? newGame() : submit());
+
+/* ---------- 새 게임 시작 (직전 단어 제외) ---------- */
+function newGame() {
+  answerWord = pickWord(answerWord);
+  answer = decompose(answerWord);
+  curRow = 0; current = []; done = false; guesses = [];
+  keyState = {};
+
+  // 보드 초기화
+  for (const row of tiles) for (const t of row) {
+    t.textContent = "";
+    t.className = "tile";
+  }
+  // 자판 색상 초기화
+  for (const j in keyEls) keyEls[j].classList.remove("absent", "present", "correct");
+
+  submitBtn.textContent = "결과보기";
+}
+newGame();  // 첫 판 시작
+
+/* ---------- 입력 처리 ---------- */
+function press(jamo) {
+  if (done || current.length >= LEN) return;
+  const t = tiles[curRow][current.length];
+  t.textContent = jamo;
+  t.classList.add("filled", "pop");
+  setTimeout(() => t.classList.remove("pop"), 100);
+  current.push(jamo);
+}
+function backspace() {
+  if (done || current.length === 0) return;
+  current.pop();
+  const t = tiles[curRow][current.length];
+  t.textContent = "";
+  t.classList.remove("filled");
+}
+
+function submit() {
+  if (done) return;
+  if (current.length < LEN) { toast("자모 5개를 입력하세요"); return; }
+
+  const guess = current.slice();
+  const result = evaluate(guess, answer);
+  const row = curRow;
+  const rank = { correct: 3, present: 2, absent: 1 };
+  const win = result.every(r => r === "correct");
+
+  // 자모 상태 반영 헬퍼
+  const colorTile = (i) => {
+    tiles[row][i].classList.add(result[i]);
+    const j = guess[i];
+    if (!keyState[j] || rank[result[i]] > rank[keyState[j]]) keyState[j] = result[i];
+    keyEls[j] && keyEls[j].classList.add(keyState[j]);
+  };
+
+  guesses.push(guess);
+  curRow++;
+  current = [];
+
+  if (win) {
+    // 정답: 한 자모씩 순차적으로 뒤집으며 공개
+    done = true;            // 애니메이션 중 입력 잠금
+    const REVEAL = 150;     // 자모 사이 간격(ms)
+    for (let i = 0; i < LEN; i++) {
+      setTimeout(() => {
+        const t = tiles[row][i];
+        t.classList.add("flip");
+        setTimeout(() => colorTile(i), 250);
+      }, i * REVEAL);
+    }
+    setTimeout(() => {
+      toast(`정답! "${answerWord}" 🎉`, 3000);
+      endGame();
+    }, (LEN - 1) * REVEAL + 500);
+  } else {
+    // 오답: 즉시 전체 공개
+    for (let i = 0; i < LEN; i++) colorTile(i);
+    if (curRow >= MAX) {
+      done = true;
+      setTimeout(() => { toast(`정답은 "${answerWord}"`, 4000); endGame(); }, 250);
+    }
+  }
+}
+
+/* 판 종료 — 버튼을 "새 게임"으로 전환 */
+function endGame() {
+  done = true;
+  submitBtn.textContent = "새 게임";
+}
+
+/* ---------- 토스트 ---------- */
+let toastTimer;
+function toast(msg, ms = 1200) {
+  const el = document.getElementById("toast");
+  el.textContent = msg; el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), ms);
+}
+
+/* 물리 키보드 입력 — IME 상태와 무관하게 물리 키 위치(e.code)를 두벌식 자모로 매핑 */
+const CODE_TO_JAMO = {
+  KeyQ:"ㅂ", KeyW:"ㅈ", KeyE:"ㄷ", KeyR:"ㄱ", KeyT:"ㅅ",
+  KeyY:"ㅛ", KeyU:"ㅕ", KeyI:"ㅑ",
+  KeyA:"ㅁ", KeyS:"ㄴ", KeyD:"ㅇ", KeyF:"ㄹ", KeyG:"ㅎ",
+  KeyH:"ㅗ", KeyJ:"ㅓ", KeyK:"ㅏ", KeyL:"ㅣ",
+  KeyZ:"ㅋ", KeyX:"ㅌ", KeyC:"ㅊ", KeyV:"ㅍ", KeyB:"ㅠ", KeyN:"ㅜ", KeyM:"ㅡ"
+};
+window.addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); done ? newGame() : submit(); return; }
+  if (e.key === "Backspace") { e.preventDefault(); backspace(); return; }
+  const j = CODE_TO_JAMO[e.code];
+  if (j && keyEls[j]) { e.preventDefault(); press(j); }
+});
+</script>
+</body>
+</html>
