@@ -26,27 +26,49 @@
     font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
     overflow: hidden;
   }
+  /* 뷰포트를 채우는 컨테이너 — 스케일된 stage를 중앙 상단에 배치 */
   #app {
-    display: flex; flex-direction: column;
+    position: relative;
     height: 100vh;                 /* fallback */
     height: 100dvh;                /* 모바일 주소창/툴바 반영한 실제 높이 */
-    max-width: 500px; margin: 0 auto;
+    overflow: hidden;
     padding-bottom: env(safe-area-inset-bottom);  /* 홈 인디케이터 영역 */
   }
+  /* 고정 설계 폭의 게임 캔버스 — JS가 폭 기준 --scale로 축소, 높이는 뷰포트에 맞춤 */
+  #stage {
+    --design-w: 400px;
+    position: absolute; top: 0; left: 0;
+    width: var(--design-w);
+    height: var(--stage-h, auto);  /* JS가 뷰포트 높이÷scale 로 세팅 → 세로 공간 확보 */
+    display: flex; flex-direction: column;
+    transform-origin: top left;     /* 좌상단 기준 → 스케일 후 크기 예측이 명확 */
+    transform: translate(var(--tx, 0), var(--ty, 0)) scale(var(--scale, 1));
+  }
+  /* 타이틀 영역: 화면 최상단 ↔ 보드 상단 사이를 차지하고, 타이틀을 세로 중앙에.
+     flex:2 → 이 영역(=A+B)이 gap(=C)의 2배로 늘어난다. 타이틀 중앙정렬이라 A=B이고,
+     header가 gap의 2배이므로 A=B=C 가 되어 타이틀·보드가 각각 정중앙에 위치. */
   header {
-    text-align: center; padding: clamp(20px, 5vh, 72px) 0 10px;
-    font-size: clamp(22px, 6vw, 28px); font-weight: 800; letter-spacing: -0.5px;
-  }
-  #board-wrap { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
-  #board {
-    display: grid; grid-template-rows: repeat(5, 1fr);
-    gap: clamp(5px, 1.5vw, 8px); padding: 6px;
-  }
-  .row { display: grid; grid-template-columns: repeat(5, 1fr); gap: clamp(5px, 1.5vw, 8px); }
-  .tile {
-    width: clamp(44px, 15vw, 58px); height: clamp(44px, 15vw, 58px);
+    flex: 2;
+    min-height: 90px;                        /* 작은 화면에서도 최소 간격 보장 */
     display: flex; align-items: center; justify-content: center;
-    font-size: clamp(18px, 5vw, 24px); font-weight: 700;
+    text-align: center;
+    font-size: 28px; font-weight: 800; letter-spacing: -0.5px;
+  }
+  #board-wrap { display: flex; align-items: center; justify-content: center; }
+  /* 보드 ↔ 하단(자판+버튼) 사이 여백(C). header의 절반과 같아지도록 flex:1 + min-height도 절반 */
+  #gap { flex: 1; min-height: 45px; }
+  #bottom {
+    display: flex; flex-direction: column;   /* 자판+결과보기 묶음 (버튼이 폭을 채우도록) */
+  }
+  #board {
+    display: grid; grid-template-rows: repeat(5, 62px);
+    gap: 8px; padding: 6px;
+  }
+  .row { display: grid; grid-template-columns: repeat(5, 62px); gap: 8px; }
+  .tile {
+    width: 62px; height: 62px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 700;
     border: 2px solid var(--tile-empty-border);
     border-radius: 12px;
     transition: transform .1s, background .2s, border-color .2s, color .2s;
@@ -63,33 +85,35 @@
   .tile.present { background: var(--present); border-color: var(--present); color: var(--state-text); }
   .tile.correct { background: var(--correct); border-color: var(--correct); color: var(--state-text); }
 
-  #keyboard { padding: 6px 5px 8px; margin-bottom: clamp(12px, 3vh, 40px); }
-  .krow { display: flex; justify-content: center; gap: clamp(4px, 1.2vw, 6px); margin-bottom: clamp(5px, 1.2vh, 8px); }
+  #keyboard {
+    padding: 6px 22px 8px;      /* 좌우 여백으로 자판 폭을 stage보다 좁게 */
+    margin-bottom: 4px;         /* 결과보기 버튼과는 바짝 붙게 */
+  }
+  .krow { display: flex; justify-content: center; gap: 6px; margin-bottom: 8px; }
   .key {
-    flex: 1; max-width: 40px; height: clamp(42px, 6.5vh, 54px);
+    flex: 1; max-width: 40px; height: 52px;
     display: flex; align-items: center; justify-content: center;
     background: var(--key-bg); color: var(--text);
     border: none; border-radius: 8px;
-    font-size: clamp(18px, 5vw, 22px); font-weight: 600; cursor: pointer;
+    font-size: 22px; font-weight: 600; cursor: pointer;
     user-select: none;
   }
   .key:active { filter: brightness(1.3); }
   .key.absent  { background: var(--absent);  color: var(--absent-text); }
   .key.present { background: var(--present); color: var(--state-text); }
   .key.correct { background: var(--correct); color: var(--state-text); }
-  .key.back { max-width: 40px; font-size: clamp(20px, 5.5vw, 24px); }
+  .key.back { max-width: 40px; font-size: 24px; }
 
   #submit {
-    margin: 4px 12px clamp(16px, 4vh, 48px); height: clamp(48px, 7vh, 60px);
+    margin: 4px 22px 12px; height: 58px;
     background: var(--accent); color: #1c1c1e;
     border: none; border-radius: 14px;
-    font-size: clamp(17px, 4.5vw, 20px); font-weight: 800; cursor: pointer;
-    flex-shrink: 0;
+    font-size: 20px; font-weight: 800; cursor: pointer;
   }
   #submit:active { filter: brightness(.95); }
 
   #toast {
-    position: fixed; top: clamp(70px, 12vh, 130px); left: 50%; transform: translateX(-50%);
+    position: fixed; top: 100px; left: 50%; transform: translateX(-50%);
     background: #f2f2f2; color: #1c1c1e;
     padding: 10px 18px; border-radius: 10px; font-weight: 700;
     opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 10;
@@ -99,10 +123,15 @@
 </head>
 <body>
 <div id="app">
-  <header>오늘의 단어</header>
-  <div id="board-wrap"><div id="board"></div></div>
-  <div id="keyboard"></div>
-  <button id="submit">결과보기</button>
+  <div id="stage">
+    <header>오늘의 단어</header>
+    <div id="board-wrap"><div id="board"></div></div>
+    <div id="gap"></div>
+    <div id="bottom">
+      <div id="keyboard"></div>
+      <button id="submit">결과보기</button>
+    </div>
+  </div>
 </div>
 <div id="toast"></div>
 
@@ -267,6 +296,34 @@ function toast(msg, ms = 1200) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove("show"), ms);
 }
+
+/* ---------- 화면 맞춤: 게임 전체(stage)를 뷰포트에 맞춰 통째로 스케일 ---------- */
+const stage = document.getElementById("stage");
+const DESIGN_W = 400;             // 설계 폭(px). CSS --design-w와 일치
+const CONTENT_H = 753;            // 요소들이 최소 간격(min-height)일 때의 높이(px)
+const SIDE_MARGIN = 20;           // 작은 화면에서 좌우 최소 여백(px)
+function fitStage() {
+  const vw = window.innerWidth;
+  const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  // 요소 크기는 폭 기준으로 스케일(1배 상한). 좌우 여백을 뺀 가용 폭 기준으로 축소해 여백 확보.
+  // 세로가 콘텐츠보다 짧으면 세로 기준으로도 축소.
+  const scale = Math.min((vw - 2 * SIDE_MARGIN) / DESIGN_W, vh / CONTENT_H, 1);
+  // 뷰포트 논리 높이. 단 콘텐츠 최소 높이(CONTENT_H)보다 작아지지 않게 해서 버튼이 잘리지 않도록.
+  // 남는 세로는 space-between이 타이틀/보드/하단 사이 간격으로 분배.
+  const logicalH = Math.max(vh / scale, CONTENT_H);
+  stage.style.setProperty("--stage-h", logicalH + "px");
+  stage.style.setProperty("--scale", scale);
+  // 스케일 후 실제 크기 기준으로 화면 중앙 배치 (세로가 남으면 중앙 정렬)
+  const sh = stage.offsetHeight;                    // 적용된 논리 높이(≤max-height)
+  const tx = (vw - DESIGN_W * scale) / 2;
+  const ty = Math.max(0, (vh - sh * scale) / 2);
+  stage.style.setProperty("--tx", tx + "px");
+  stage.style.setProperty("--ty", ty + "px");
+}
+window.addEventListener("resize", fitStage);
+if (window.visualViewport) window.visualViewport.addEventListener("resize", fitStage);
+window.addEventListener("load", fitStage);   // 웹폰트 로드 후 높이 재계산
+fitStage();
 
 /* 물리 키보드 입력 — IME 상태와 무관하게 물리 키 위치(e.code)를 두벌식 자모로 매핑 */
 const CODE_TO_JAMO = {
