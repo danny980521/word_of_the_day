@@ -142,9 +142,9 @@
 /* 핵심 로직은 logic.js에서 로드 (게임/테스트 공유 단일 소스) */
 const { decompose, evaluate, isValidWord } = KordleLogic;
 
-/* ---------- 정답 후보 (words.js에서 로드, 현재 A등급만 사용) ---------- */
-const GRADE = "A";
-const WORDS = KordleWords.WORDS_BY_GRADE[GRADE];
+/* ---------- 정답 후보 (words.js에서 로드, 현재 A·B등급 사용, C 제외) ---------- */
+const GRADES = ["A", "B"];
+const WORDS = GRADES.flatMap(g => KordleWords.WORDS_BY_GRADE[g] || []);
 const LEN = 5, MAX = 5;
 
 // 직전 단어(exclude)를 피해 랜덤으로 하나 뽑는다

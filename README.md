@@ -32,7 +32,7 @@
 4. `data/blacklist.txt`에 있는 단어는 제외 (부적절하거나 빼고 싶은 단어를 한 줄에 하나씩)
 
 결과는 난이도 등급(A/B/C)과 함께 `data/whitelist.txt`(`단어<TAB>등급`)로 저장되며,
-게임은 현재 **A등급**만 정답 후보로 사용합니다. (난이도는 `index.html`의 `GRADE`로 조정)
+게임은 현재 **A·B등급**을 정답 후보로 사용합니다(C 제외). (난이도는 `index.html`의 `GRADES`로 조정)
 
 ```bash
 node build_whitelist.js   # data/korean_words.txt → data/whitelist.txt, words.js 재생성
