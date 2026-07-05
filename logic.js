@@ -58,10 +58,53 @@
     return res;
   }
 
+  /* ---------- 유효한 한글 단어 구성인지 검사 ----------
+   * 기본 자모 시퀀스가 "초성+중성(+종성)" 음절들로 완전히 조립되는지 확인.
+   * 자음만 나열(ㅁㄴㅇㄹㄴ)하거나 모음으로 시작(ㅜㅜㅂㅏㅏ)하는 등
+   * 실제 한글 음절이 될 수 없는 조합을 걸러낸다.
+   * (decompose의 역연산 — SPLIT을 뒤집어 겹자음·이중모음·겹받침을 다시 묶는다.)
+   */
+  const COMBINE = {};                       // 기본자모 조합 → 복합자모 (예: "ㄱㄱ"→"ㄲ", "ㅏㅣ"→"ㅐ")
+  for (const k in SPLIT) COMBINE[SPLIT[k]] = k;
+  const CHO_SET  = new Set(CHO);
+  const JUNG_SET = new Set(JUNG);
+  const JONG_SET = new Set(JONG.filter(Boolean));
+
+  // arr[i]부터 1~3개 자모를 묶어 만들 수 있는 (복합 or 단일) 심볼 중, kind에 속하는 후보들
+  function groupings(arr, i, inKind) {
+    const res = [];
+    for (let len = 1; len <= 3 && i + len <= arr.length; len++) {
+      const seq = arr.slice(i, i + len).join("");
+      const sym = len === 1 ? seq : COMBINE[seq];
+      if (sym && inKind.has(sym)) res.push(len);
+    }
+    return res;
+  }
+
+  // arr[i..]를 유효한 음절들로 완전히 분해할 수 있으면 true (백트래킹)
+  function canParse(arr, i) {
+    if (i === arr.length) return true;
+    for (const choLen of groupings(arr, i, CHO_SET)) {          // 초성(겹자음 포함)
+      const j = i + choLen;
+      for (const jungLen of groupings(arr, j, JUNG_SET)) {      // 중성(이중모음 포함)
+        const k = j + jungLen;
+        if (canParse(arr, k)) return true;                     // 종성 없음
+        for (const jongLen of groupings(arr, k, JONG_SET)) {   // 종성(겹받침 포함)
+          if (canParse(arr, k + jongLen)) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function isValidWord(jamos) {
+    return Array.isArray(jamos) && jamos.length > 0 && canParse(jamos, 0);
+  }
+
   /* ---------- 정답 후보 (모두 자모 5개로 분해됨) ---------- */
   const WORDS = ["어둠", "규칙", "비용", "부분", "까치", "개미"];
 
-  const api = { CHO, JUNG, JONG, SPLIT, decompose, evaluate, WORDS };
+  const api = { CHO, JUNG, JONG, SPLIT, decompose, evaluate, isValidWord, WORDS };
 
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.KordleLogic = api;

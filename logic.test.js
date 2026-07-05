@@ -2,7 +2,7 @@
  * Kordle 로직 테스트
  * 실행:  node logic.test.js
  * ============================================================ */
-const { decompose, evaluate, WORDS } = require("./logic.js");
+const { decompose, evaluate, isValidWord, WORDS } = require("./logic.js");
 
 let passed = 0, failed = 0;
 
@@ -76,6 +76,27 @@ test("규칙3: 2개, 초록없음 → 앞2개 노랑",
 // 규칙3: 정답에 2개, 초록 2개 → 둘 다 초록
 test("규칙3: 2개, 초록2개 → 둘 다 초록",
   grade("ㅂㅏㅂㅏㅂ", "ㅂㅜㅂㅜㄴ"), expect("🟩⬜🟩⬜⬜"));
+
+/* ---------- 유효 단어 검사 (isValidWord) ---------- */
+console.log("\n[단어검증] isValidWord");
+function testBool(name, actual, expected) {
+  if (actual === expected) { passed++; console.log(`  ✅ ${name}`); }
+  else { failed++; console.log(`  ❌ ${name} (기대 ${expected}, 실제 ${actual})`); }
+}
+// 유효: 정답 후보(분해형)는 모두 통과해야
+for (const w of WORDS) testBool(`유효: ${w}`, isValidWord(decompose(w)), true);
+// 유효: 겹받침/이중모음/받침경계 등 실제 한글
+testBool("유효: 값(겹받침)", isValidWord(decompose("값")), true);
+testBool("유효: 닭(겹받침)", isValidWord(decompose("여덟")), true);
+testBool("유효: 과일(이중모음)", isValidWord(decompose("과일")), true);
+testBool("유효: 의사(ㅢ)", isValidWord(decompose("의사")), true);
+// 무효: 자음만 나열
+testBool("무효: ㅁㄴㅇㄹㄴ", isValidWord([..."ㅁㄴㅇㄹㄴ"]), false);
+// 무효: 모음으로 시작 / 모음 나열
+testBool("무효: ㅜㅜㅂㅏㅏ", isValidWord([..."ㅜㅜㅂㅏㅏ"]), false);
+testBool("무효: ㅏㅏㅏㅏㅏ", isValidWord([..."ㅏㅏㅏㅏㅏ"]), false);
+// 무효: 초성 없이 모음+자음
+testBool("무효: ㄱㄴㄷㄹㅁ", isValidWord([..."ㄱㄴㄷㄹㅁ"]), false);
 
 /* ---------- 결과 ---------- */
 console.log(`\n결과: ${passed} 통과, ${failed} 실패`);

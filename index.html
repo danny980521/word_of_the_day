@@ -54,7 +54,7 @@
     text-align: center;
     font-size: 28px; font-weight: 800; letter-spacing: -0.5px;
   }
-  #board-wrap { display: flex; align-items: center; justify-content: center; }
+  #board-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
   /* 보드 ↔ 하단(자판+버튼) 사이 여백(C). header의 절반과 같아지도록 flex:1 + min-height도 절반 */
   #gap { flex: 1; min-height: 45px; }
   #bottom {
@@ -91,7 +91,7 @@
   }
   .krow { display: flex; justify-content: center; gap: 6px; margin-bottom: 8px; }
   .key {
-    flex: 1; max-width: 40px; height: 52px;
+    flex: 1; max-width: 34px; height: 52px;
     display: flex; align-items: center; justify-content: center;
     background: var(--key-bg); color: var(--text);
     border: none; border-radius: 8px;
@@ -102,7 +102,7 @@
   .key.absent  { background: var(--absent);  color: var(--absent-text); }
   .key.present { background: var(--present); color: var(--state-text); }
   .key.correct { background: var(--correct); color: var(--state-text); }
-  .key.back { max-width: 40px; font-size: 24px; }
+  .key.back { max-width: 34px; font-size: 24px; }
 
   #submit {
     margin: 4px 22px 12px; height: 58px;
@@ -112,10 +112,12 @@
   }
   #submit:active { filter: brightness(.95); }
 
+  /* 토스트: 보드 상단 기준으로 위로 띄워 타이틀↔보드 중간에 표시 (stage 안이라 scale 적용됨) */
   #toast {
-    position: fixed; top: 100px; left: 50%; transform: translateX(-50%);
+    position: absolute; bottom: 100%; left: 50%;
+    transform: translate(-50%, -22px);
     background: #f2f2f2; color: #1c1c1e;
-    padding: 10px 18px; border-radius: 10px; font-weight: 700;
+    padding: 10px 18px; border-radius: 10px; font-weight: 700; white-space: nowrap;
     opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 10;
   }
   #toast.show { opacity: 1; }
@@ -125,7 +127,7 @@
 <div id="app">
   <div id="stage">
     <header>오늘의 단어</header>
-    <div id="board-wrap"><div id="board"></div></div>
+    <div id="board-wrap"><div id="board"></div><div id="toast"></div></div>
     <div id="gap"></div>
     <div id="bottom">
       <div id="keyboard"></div>
@@ -133,13 +135,12 @@
     </div>
   </div>
 </div>
-<div id="toast"></div>
 
 <script src="logic.js"></script>
 <script src="words.js"></script>
 <script>
 /* 핵심 로직은 logic.js에서 로드 (게임/테스트 공유 단일 소스) */
-const { decompose, evaluate } = KordleLogic;
+const { decompose, evaluate, isValidWord } = KordleLogic;
 
 /* ---------- 정답 후보 (words.js에서 로드, 현재 A등급만 사용) ---------- */
 const GRADE = "A";
@@ -238,6 +239,7 @@ function backspace() {
 function submit() {
   if (done) return;
   if (current.length < LEN) { toast("자모 5개를 입력하세요"); return; }
+  if (!isValidWord(current)) { toast("올바른 단어가 아니에요"); return; }
 
   const guess = current.slice();
   const result = evaluate(guess, answer);
